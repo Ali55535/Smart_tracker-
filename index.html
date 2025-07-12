@@ -1,0 +1,284 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>📈 Smart Project Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #f1f5f9, #e2e8f0);
+      color: #1e293b;
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      height: 100vh;
+      padding: 20px;
+      gap: 15px;
+    }
+
+    h1 {
+      font-size: 2em;
+      color: #2563eb;
+      margin-bottom: 5px;
+    }
+
+    .stats {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      background: white;
+      border-radius: 15px;
+      padding: 15px 25px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      min-width: 180px;
+      text-align: center;
+    }
+
+    .card h3 {
+      margin: 5px 0;
+      font-size: 1em;
+      color: #475569;
+    }
+
+    .card .value {
+      font-size: 1.4em;
+      font-weight: bold;
+      color: #10b981;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 5px;
+    }
+
+    input[type="number"] {
+      padding: 10px;
+      font-size: 1em;
+      width: 160px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #10b981;
+      border: none;
+      color: white;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #059669;
+    }
+
+    .charts {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    canvas {
+      width: 200px !important;
+      height: 200px !important;
+    }
+
+    @media (max-width: 768px) {
+      main {
+        height: auto;
+      }
+      .charts {
+        flex-direction: column;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>📈 Smart Project Tracker</h1>
+
+  <div class="stats">
+    <div class="card">
+      <h3>💰 Amount</h3>
+      <div class="value"><span id="amount">0</span> / 3M</div>
+    </div>
+    <div class="card">
+      <h3>📅 Day</h3>
+      <div class="value"><span id="day">1</span> / 1000</div>
+    </div>
+    <div class="card">
+      <h3>🏁 Completion</h3>
+      <div class="value"><span id="percent">0</span>%</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button onclick="addAmount(2500)">➕ Add 2500</button>
+    <input type="number" id="customAmount" placeholder="🔢 Custom amount">
+    <button onclick="addCustom()">➕ Add Custom</button>
+    <button onclick="goBack()">🔙 Back</button>
+  </div>
+
+  <div class="charts">
+    <canvas id="donutChart"></canvas>
+    <canvas id="lineChart"></canvas>
+  </div>
+</main>
+
+<script>
+  const maxAmount = 3000000;
+  const totalDays = 1000;
+  let currentAmount = 0;
+  let currentDay = 1;
+  let progressHistory = [];
+
+  const amountEl = document.getElementById("amount");
+  const dayEl = document.getElementById("day");
+  const percentEl = document.getElementById("percent");
+
+  window.onload = () => {
+    const saved = JSON.parse(localStorage.getItem("projectUI"));
+    if (saved) {
+      currentAmount = saved.amount || 0;
+      currentDay = saved.day || 1;
+      progressHistory = saved.history || [];
+    }
+    updateUI();
+  };
+
+  function saveData() {
+    localStorage.setItem("projectUI", JSON.stringify({
+      amount: currentAmount,
+      day: currentDay,
+      history: progressHistory
+    }));
+  }
+
+  function updateUI() {
+    const percent = Math.min((currentAmount / maxAmount) * 100, 100).toFixed(2);
+    amountEl.textContent = currentAmount.toLocaleString();
+    dayEl.textContent = currentDay;
+    percentEl.textContent = percent;
+    updateDonut(percent);
+    updateLine();
+    saveData();
+  }
+
+  function addAmount(value) {
+    if (currentDay <= totalDays) {
+      currentAmount += value;
+      if (currentAmount > maxAmount) currentAmount = maxAmount;
+      progressHistory.push({ day: currentDay, value: currentAmount });
+      currentDay++;
+      updateUI();
+    } else {
+      alert("✅ Project complete.");
+    }
+  }
+
+  function addCustom() {
+    const input = document.getElementById("customAmount");
+    const value = parseInt(input.value);
+    if (!isNaN(value) && value > 0) {
+      addAmount(value);
+      input.value = "";
+    }
+  }
+
+  function goBack() {
+    if (currentDay > 1 && progressHistory.length > 0) {
+      currentDay--;
+      progressHistory.pop();
+      currentAmount = progressHistory.length ? progressHistory[progressHistory.length - 1].value : 0;
+      updateUI();
+    } else {
+      alert("🚫 Cannot go back further.");
+    }
+  }
+
+  // Donut Chart
+  const donutCtx = document.getElementById("donutChart").getContext("2d");
+  const donutChart = new Chart(donutCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['✔️ Completed', '📉 Remaining'],
+      datasets: [{
+        data: [0, 100],
+        backgroundColor: ['#10b981', '#e5e7eb'],
+        borderWidth: 1
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { display: false }
+      },
+      cutout: '70%',
+      responsive: true
+    }
+  });
+
+  function updateDonut(percent) {
+    donutChart.data.datasets[0].data = [percent, 100 - percent];
+    donutChart.update();
+  }
+
+  // Line Chart
+  const lineCtx = document.getElementById("lineChart").getContext("2d");
+  const lineChart = new Chart(lineCtx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: '📈 Progress Over Time',
+        data: [],
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37,99,235,0.1)',
+        fill: true,
+        tension: 0.3,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { title: { display: true, text: '📅 Day' } },
+        y: {
+          title: { display: true, text: '💰 Amount' },
+          beginAtZero: true,
+          suggestedMax: maxAmount
+        }
+      }
+    }
+  });
+
+  function updateLine() {
+    lineChart.data.labels = progressHistory.map(p => `Day ${p.day}`);
+    lineChart.data.datasets[0].data = progressHistory.map(p => p.value);
+    lineChart.update();
+  }
+</script>
+</body>
+</html>
